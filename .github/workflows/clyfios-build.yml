@@ -1,5 +1,7 @@
-# ClyFiOS: 64-bit only build. Produces bootcd.iso (installer) and livecd.iso
-# (runs without installing) as downloadable artifacts on each push to clyfios.
+# ClyFiOS: 64-bit only build. Produces bootcd.iso (Setup + Live environment in
+# one ISO) as a downloadable artifact on each push to clyfios, plus a separate
+# symbols artifact with key binaries (they keep their DWARF debug info on amd64)
+# for decoding crash backtraces.
 name: ClyFiOS Build
 on:
   push:
@@ -13,7 +15,7 @@ jobs:
         compiler: [gcc]
         arch: [amd64]
         config: [Debug]
-        dllver: ['0x600']
+        dllver: ['0x502', '0x600']
       fail-fast: false
     runs-on: ubuntu-22.04
     steps:
@@ -83,10 +85,20 @@ jobs:
       run: echo 'cmake --build ${{github.workspace}}/build --target bootcd livecd' | ${{github.workspace}}/RosBE-CI/RosBE.sh . 0 ${{matrix.arch}}
     - name: Print ccache statistics
       run: ccache -s
-    - name: Upload ISOs
+    - name: Upload ISO
       uses: actions/upload-artifact@v7
       with:
-        name: clyfios-${{matrix.arch}}-${{matrix.config}}-${{github.sha}}
+        name: clyfios-${{matrix.arch}}-${{matrix.config}}-${{matrix.dllver}}-${{github.sha}}
+        path: build/bootcd.iso
+    - name: Upload symbols
+      uses: actions/upload-artifact@v7
+      with:
+        name: clyfios-symbols-${{matrix.arch}}-${{matrix.config}}-${{matrix.dllver}}-${{github.sha}}
+        if-no-files-found: warn
         path: |
-          build/bootcd.iso
-          build/livecd.iso
+          build/ntoskrnl/ntoskrnl.exe
+          build/hal/halx86/hal*.dll
+          build/dll/ntdll/ntdll.dll
+          build/base/system/smss/smss.exe
+          build/dll/win32/kernel32/kernel32.dll
+          build/win32ss/win32k.sys
