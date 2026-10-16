@@ -3,6 +3,10 @@
 # - build-msvc: the main build. MSVC amd64 Debug, DLL_EXPORT_VERSION 0x502 and
 #   0x600. GCC-built amd64 currently dies at smss startup (ASSERT Heap != NULL
 #   in RtlpInitializeHeap); official MSVC x64 builds boot fine.
+#   MSVC Debug defaults to the WinDbg KD protocol on COM1 (binary, no kdb
+#   prompt, assertions just bugcheck). We use the built-in kdb debugger
+#   instead (_WINKD_=FALSE, KDBG=TRUE): readable serial log and a kdb:>
+#   prompt on assertions, like the GCC builds.
 # - build-gcc: kept (0x502 only) so the GCC-specific bug can be investigated.
 #   Its symbols artifact holds binaries with DWARF info for addr2line.
 # - release: on pushes to the clyfios branch, replaces the "latest-build"
@@ -46,7 +50,7 @@ jobs:
     - name: Configure problem matchers
       run: echo ::add-matcher::src/.github/workflows/problem-matcher.json
     - name: Configure
-      run: cmake -S src -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE:FILEPATH=toolchain-msvc.cmake -DARCH:STRING=${{matrix.arch}} -DCMAKE_BUILD_TYPE=${{matrix.config}} -DDLL_EXPORT_VERSION=${{matrix.dllver}}
+      run: cmake -S src -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE:FILEPATH=toolchain-msvc.cmake -DARCH:STRING=${{matrix.arch}} -DCMAKE_BUILD_TYPE=${{matrix.config}} -DDLL_EXPORT_VERSION=${{matrix.dllver}} -D_WINKD_=FALSE -DKDBG=TRUE
     - name: Build
       run: cmake --build build -- -k0
     - name: Generate ISO
