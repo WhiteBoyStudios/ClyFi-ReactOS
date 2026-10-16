@@ -1,7 +1,13 @@
-# ClyFiOS: 64-bit only build. Produces bootcd.iso (Setup + Live environment in
-# one ISO) as a downloadable artifact on each push to clyfios, plus a separate
-# symbols artifact with key binaries (they keep their DWARF debug info on amd64)
-# for decoding crash backtraces.
+# ClyFiOS: 64-bit only builds.
+#
+# - build-msvc: the main build. MSVC amd64 Debug, DLL_EXPORT_VERSION 0x502 and
+#   0x600. GCC-built amd64 currently dies at smss startup (ASSERT Heap != NULL
+#   in RtlpInitializeHeap); official MSVC x64 builds boot fine.
+# - build-gcc: kept (0x502 only) so the GCC-specific bug can be investigated.
+#   Its symbols artifact holds binaries with DWARF info for addr2line.
+# - release: on pushes to the clyfios branch, replaces the "latest-build"
+#   GitHub Release with the MSVC ISOs, so the newest ISO is always at
+#   https://github.com/WhiteBoyStudios/ClyFi-ReactOS/releases/latest
 name: ClyFiOS Build
 on:
   push:
@@ -9,13 +15,98 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-amd64:
+  build-msvc:
+    strategy:
+      matrix:
+        toolset: ['14']
+        arch: [amd64]
+        config: [Debug]
+        dllver: ['0x502', '0x600']
+      fail-fast: false
+    runs-on: windows-latest
+    steps:
+    - name: Install ninja
+      run: choco install -y ninja
+    - name: Install Flex & Bison
+      run: |
+        curl -O https://svn.reactos.org/storage/vperevertkin/flexbison.7z || curl -OL https://web.archive.org/web/2025if_/https://svn.reactos.org/storage/vperevertkin/flexbison.7z
+        7z x flexbison.7z -O${{github.workspace}}\bin
+        echo "${{github.workspace}}\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "BISON_PKGDATADIR=${{github.workspace}}\bin\share\bison" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "M4=${{github.workspace}}\bin\m4.exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Activate VS cmd (amd64)
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+        toolset: ${{matrix.toolset}}
+    - name: Source checkout
+      uses: actions/checkout@v6
+      with:
+        path: src
+    - name: Configure problem matchers
+      run: echo ::add-matcher::src/.github/workflows/problem-matcher.json
+    - name: Configure
+      run: cmake -S src -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE:FILEPATH=toolchain-msvc.cmake -DARCH:STRING=${{matrix.arch}} -DCMAKE_BUILD_TYPE=${{matrix.config}} -DDLL_EXPORT_VERSION=${{matrix.dllver}}
+    - name: Build
+      run: cmake --build build -- -k0
+    - name: Generate ISO
+      run: |
+        cmake --build build --target bootcd
+        Copy-Item build/bootcd.iso build/clyfios-${{matrix.arch}}-dbg-${{matrix.dllver}}.iso
+    - name: Upload ISO
+      uses: actions/upload-artifact@v7
+      with:
+        name: clyfios-msvc-${{matrix.arch}}-${{matrix.config}}-${{matrix.dllver}}-${{github.sha}}
+        path: build/clyfios-${{matrix.arch}}-dbg-${{matrix.dllver}}.iso
+    - name: Upload debug symbols (PDB)
+      uses: actions/upload-artifact@v7
+      with:
+        name: clyfios-msvc-symbols-${{matrix.arch}}-${{matrix.config}}-${{matrix.dllver}}-${{github.sha}}
+        path: build/msvc_pdb
+
+  release:
+    needs: build-msvc
+    if: ${{ github.ref == 'refs/heads/clyfios' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+    - name: Download MSVC ISOs
+      run: |
+        for v in 0x502 0x600; do
+          gh run download ${{ github.run_id }} -n clyfios-msvc-amd64-Debug-$v-${{ github.sha }} -D iso
+        done
+        ls -la iso
+    - name: Publish latest-build release
+      run: |
+        SHORT=$(echo ${{ github.sha }} | cut -c1-7)
+        cat > notes.md <<EOF
+        Newest ClyFiOS test build, from commit $SHORT on the clyfios branch.
+
+        **Which file?**
+        - \`clyfios-amd64-dbg-0x600.iso\` — the main ClyFiOS build (Vista-level APIs). Use this one.
+        - \`clyfios-amd64-dbg-0x502.iso\` — ReactOS default settings, for comparison.
+
+        **VirtualBox:** OS type Windows XP (64-bit), 3072 MB RAM, CD drive on the IDE controller.
+        Boot **Live (Screen Debug)** to see debug output on screen.
+        EOF
+        gh release delete latest-build --yes --cleanup-tag || true
+        gh release create latest-build iso/*.iso \
+          --target ${{ github.sha }} \
+          --title "ClyFiOS latest build ($SHORT)" \
+          --notes-file notes.md \
+          --latest
+
+  build-gcc:
     strategy:
       matrix:
         compiler: [gcc]
         arch: [amd64]
         config: [Debug]
-        dllver: ['0x502', '0x600']
+        dllver: ['0x502']
       fail-fast: false
     runs-on: ubuntu-22.04
     steps:
