@@ -68,6 +68,20 @@ jobs:
         path: src
     - name: Configure problem matchers
       run: echo ::add-matcher::src/.github/workflows/problem-matcher.json
+    # Bundled browser (test): Supermium is an open-source Chromium fork that
+    # still targets the Windows XP/2003/Vista API level ReactOS provides;
+    # Chrome, Edge, Brave and Firefox all require Windows 10. It lands in
+    # X:\extras\Supermium on the Live CD. 0x600 builds only.
+    - name: Add Supermium browser to the Live CD
+      if: ${{ matrix.dllver == '0x600' }}
+      run: |
+        curl -fL -o supermium.zip https://github.com/win32ss/supermium/releases/download/v144-r5/supermium_144_64_nonsetup.zip
+        7z x supermium.zip -osupermium_unpacked -y
+        New-Item -ItemType Directory -Force src/modules/livecd_extras | Out-Null
+        $top = Get-ChildItem supermium_unpacked
+        if ($top.Count -eq 1 -and $top[0].PSIsContainer) { Move-Item $top[0].FullName src/modules/livecd_extras/Supermium }
+        else { Move-Item supermium_unpacked src/modules/livecd_extras/Supermium }
+        Get-ChildItem src/modules/livecd_extras/Supermium | Select-Object -First 20
     - name: Configure
       run: cmake -S src -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE:FILEPATH=toolchain-msvc.cmake -DARCH:STRING=${{matrix.arch}} -DCMAKE_BUILD_TYPE=${{matrix.config}} -DDLL_EXPORT_VERSION=${{matrix.dllver}} ${{matrix.kdflags}}
     - name: Build
@@ -114,6 +128,8 @@ jobs:
         - \`clyfios-amd64-dbg-0x600.iso\` — main ClyFiOS debug build (Vista-level APIs). Use this for testing and crash logs.
         - \`clyfios-amd64-rel-0x600.iso\` — optimized release build, no debug checks. Use this to time boot speed.
         - \`clyfios-amd64-dbg-0x502.iso\` — ReactOS default settings, for comparison.
+
+        The 0x600 ISOs include the Supermium browser (test) in X:\\extras\\Supermium on the Live CD — run chrome.exe there.
 
         Boot-time log: boot a debug ISO with **Live (Debug)**; lines starting with BOOTTIME in serial.log show each startup stage in milliseconds.
 
