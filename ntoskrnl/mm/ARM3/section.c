@@ -3114,6 +3114,18 @@ NtCreateSection(OUT PHANDLE SectionHandle,
         }
     }
 
+    /*
+     * ClyFiOS: SEC_IMAGE_NO_EXECUTE (Windows 8+) is SEC_IMAGE | SEC_NOCACHE.
+     * It maps an image for inspection only (no code will run from it).
+     * Treat it as a plain image section instead of rejecting the request:
+     * Chromium (Supermium) uses it and crashed in chrome.dll's DllMain when
+     * the section creation failed with STATUS_INVALID_PARAMETER_6.
+     */
+    if ((AllocationAttributes & (SEC_IMAGE | SEC_NOCACHE)) == (SEC_IMAGE | SEC_NOCACHE))
+    {
+        AllocationAttributes &= ~SEC_NOCACHE;
+    }
+
     /* Check for no allocation type */
     if (!(AllocationAttributes & (SEC_COMMIT | SEC_RESERVE | SEC_IMAGE)))
     {
