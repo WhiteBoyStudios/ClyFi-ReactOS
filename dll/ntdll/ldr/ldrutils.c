@@ -1196,6 +1196,20 @@ SkipCheck:
         return STATUS_INVALID_IMAGE_FORMAT;
     }
 
+#ifdef _M_AMD64
+    /* ClyFiOS: there is no WoW64 yet, so a 32-bit DLL can never run in a
+     * 64-bit process (e.g. a 32-bit shell extension loaded by explorer).
+     * The kernel does not report this, so reject it here instead of trying
+     * to snap its imports, which ends in a bogus "entry point not found"
+     * error box. */
+    if (NtHeaders->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64)
+    {
+        DPRINT1("LDR: %wZ is not a 64-bit image (machine 0x%x), refusing to load\n",
+                &FullDllName, NtHeaders->FileHeader.Machine);
+        Status = STATUS_IMAGE_MACHINE_TYPE_MISMATCH;
+    }
+#endif
+
     // FIXME: .NET support is missing
 
     /* Allocate an entry */
