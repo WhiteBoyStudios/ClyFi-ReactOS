@@ -23,6 +23,7 @@ list(APPEND SOURCE
     sync.c
     ThreadDescription.c
     threadpool.c
+    procattr.c
     vista.c
     wer.c)
 

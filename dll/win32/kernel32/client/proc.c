@@ -2316,6 +2316,14 @@ CreateProcessInternalW(IN HANDLE hUserToken,
     NoWindow = dwCreationFlags & CREATE_NO_WINDOW;
     dwCreationFlags &= ~CREATE_NO_WINDOW;
 
+    /* ClyFiOS: lpStartupInfo may be a STARTUPINFOEXW with an attribute list.
+     * The attributes are not supported yet, so accept the flag and ignore
+     * the list (the STARTUPINFOW part is still valid). */
+#ifndef EXTENDED_STARTUPINFO_PRESENT
+#define EXTENDED_STARTUPINFO_PRESENT 0x00080000
+#endif
+    dwCreationFlags &= ~EXTENDED_STARTUPINFO_PRESENT;
+
 #if _SXS_SUPPORT_ENABLED_
     /* Setup the SxS static string arrays and buffers */
     SxsStaticBuffers[0] = &SxsWin32ManifestPath;
