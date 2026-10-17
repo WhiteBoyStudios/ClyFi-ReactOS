@@ -428,6 +428,18 @@ GinaLoadFailedWindowProc(
 }
 
 
+/* ClyFiOS: print a "BOOTTIME: <stage> <ms>" line to the debug output, in the
+ * same format as ExpBootMilestone in ntoskrnl, to build a boot timeline. */
+VOID
+WlBootMilestone(
+    _In_ PCSTR Name)
+{
+    CHAR Milestone[96];
+    StringCchPrintfA(Milestone, ARRAYSIZE(Milestone), "BOOTTIME: %-32s %6lu ms\n",
+                     Name, GetTickCount());
+    OutputDebugStringA(Milestone);
+}
+
 int
 WINAPI
 WinMain(
@@ -452,6 +464,8 @@ WinMain(
     UNREFERENCED_PARAMETER(nShowCmd);
 
     hAppInstance = hInstance;
+
+    WlBootMilestone("winlogon start");
 
     /* Make us critical */
     RtlSetProcessIsCritical(TRUE, NULL, FALSE);

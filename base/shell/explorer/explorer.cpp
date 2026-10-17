@@ -227,11 +227,23 @@ StartWithDesktop(IN HINSTANCE hInstance)
         SetShellReadyEvent(L"Global\\msgina: ShellReadyEvent");
 
     {
-        /* ClyFiOS: boot-time milestone (see ExpBootMilestone in ntoskrnl) */
+        /* ClyFiOS: boot-time milestone (see ExpBootMilestone in ntoskrnl).
+         * Also save it to HKCU\Software\ClyFiOS\BootTimeMs so release builds
+         * (which have no debug output) can be timed too:
+         *   reg query HKCU\Software\ClyFiOS /v BootTimeMs */
+        DWORD dwBootTimeMs = GetTickCount();
         CHAR Milestone[96];
+        HKEY hkClyFiOS;
         StringCchPrintfA(Milestone, ARRAYSIZE(Milestone), "BOOTTIME: %-32s %6lu ms\n",
-                         "desktop ready (explorer)", GetTickCount());
+                         "desktop ready (explorer)", dwBootTimeMs);
         OutputDebugStringA(Milestone);
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\ClyFiOS", 0, NULL, 0,
+                            KEY_SET_VALUE, NULL, &hkClyFiOS, NULL) == ERROR_SUCCESS)
+        {
+            RegSetValueExW(hkClyFiOS, L"BootTimeMs", 0, REG_DWORD,
+                           (const BYTE *)&dwBootTimeMs, sizeof(dwBootTimeMs));
+            RegCloseKey(hkClyFiOS);
+        }
     }
 
     if (DoStartStartupItems(Tray))

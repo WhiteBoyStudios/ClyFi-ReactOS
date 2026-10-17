@@ -244,6 +244,20 @@ ShutdownHandlerRoutine(DWORD dwCtrlType)
 }
 
 
+/* ClyFiOS: print a "BOOTTIME: <stage> <ms>" line to the debug output, in the
+ * same format as ExpBootMilestone in ntoskrnl, to build a boot timeline. */
+static
+VOID
+ScmBootMilestone(
+    _In_ PCSTR Name)
+{
+    CHAR Milestone[96];
+    _snprintf(Milestone, sizeof(Milestone) - 1, "BOOTTIME: %-32s %6lu ms\n",
+              Name, GetTickCount());
+    Milestone[sizeof(Milestone) - 1] = '\0';
+    OutputDebugStringA(Milestone);
+}
+
 int WINAPI
 wWinMain(HINSTANCE hInstance,
          HINSTANCE hPrevInstance,
@@ -257,6 +271,8 @@ wWinMain(HINSTANCE hInstance,
     DWORD dwError;
 
     DPRINT("SERVICES: Service Control Manager\n");
+
+    ScmBootMilestone("services.exe start");
 
     dwError = CheckForLiveCD();
     if (dwError != ERROR_SUCCESS)
@@ -362,7 +378,9 @@ wWinMain(HINSTANCE hInstance,
     SetProcessShutdownParameters(480, SHUTDOWN_NORETRY);
 
     /* Start auto-start services */
+    ScmBootMilestone("auto-start services begin");
     ScmAutoStartServices();
+    ScmBootMilestone("auto-start services done");
 
     /* Signal auto-start complete event */
     SetEvent(hScmAutoStartCompleteEvent);

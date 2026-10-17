@@ -92,6 +92,9 @@ StartUserShell(
     BOOLEAN Old;
     BOOL ret;
 
+    /* ClyFiOS: boot-time milestone (see ExpBootMilestone in ntoskrnl) */
+    WlBootMilestone("user shell launch (winlogon)");
+
     /* Create environment block for the user */
     if (!CreateEnvironmentBlock(&lpEnvironment, Session->UserToken, TRUE))
     {
@@ -666,13 +669,6 @@ HandleLogon(
     RestoreAllConnections(Session);
 
     /* Start the user shell */
-    {
-        /* ClyFiOS: boot-time milestone (see ExpBootMilestone in ntoskrnl) */
-        CHAR Milestone[96];
-        StringCchPrintfA(Milestone, ARRAYSIZE(Milestone), "BOOTTIME: %-32s %6lu ms\n",
-                         "user shell launch (winlogon)", GetTickCount());
-        OutputDebugStringA(Milestone);
-    }
     CallNotificationDlls(Session, StartShellHandler);
     if (!StartUserShell(Session))
     {

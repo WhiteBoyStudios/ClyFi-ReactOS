@@ -405,6 +405,10 @@ StartSystemShutdown(
     IN ULONG dwReason);
 
 /* winlogon.c */
+VOID
+WlBootMilestone(
+    _In_ PCSTR Name);
+
 PWSTR
 WlStrDup(
     _In_opt_ PCWSTR String);
