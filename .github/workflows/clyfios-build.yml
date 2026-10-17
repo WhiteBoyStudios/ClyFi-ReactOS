@@ -82,6 +82,10 @@ jobs:
         if ($top.Count -eq 1 -and $top[0].PSIsContainer) { Move-Item $top[0].FullName src/modules/livecd_extras/Supermium }
         else { Move-Item supermium_unpacked src/modules/livecd_extras/Supermium }
         Get-ChildItem src/modules/livecd_extras/Supermium | Select-Object -First 20
+        # Also as plain files on the CD itself (D:\extras\Supermium on an
+        # installed system); livecd_extras only lives inside liveimg.iso.
+        New-Item -ItemType Directory -Force src/modules/bootcd_extras | Out-Null
+        Copy-Item -Recurse src/modules/livecd_extras/Supermium src/modules/bootcd_extras/Supermium
     - name: Configure
       run: cmake -S src -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE:FILEPATH=toolchain-msvc.cmake -DARCH:STRING=${{matrix.arch}} -DCMAKE_BUILD_TYPE=${{matrix.config}} -DDLL_EXPORT_VERSION=${{matrix.dllver}} ${{matrix.kdflags}}
     - name: Build
