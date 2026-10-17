@@ -1224,12 +1224,12 @@
 @ stdcall WaitNamedPipeW(wstr long)
 @ stdcall -version=0x600+ WakeAllConditionVariable(ptr) ntdll.RtlWakeAllConditionVariable
 @ stdcall -version=0x600+ WakeConditionVariable(ptr) ntdll.RtlWakeConditionVariable
-@ stub -version=0x600+ WerGetFlags
-@ stub -version=0x600+ WerRegisterFile
-@ stub -version=0x600+ WerRegisterMemoryBlock
-@ stub -version=0x600+ WerSetFlags
-@ stub -version=0x600+ WerUnregisterFile
-@ stub -version=0x600+ WerUnregisterMemoryBlock
+@ stdcall -version=0x600+ WerGetFlags(ptr ptr)
+@ stdcall -version=0x600+ WerRegisterFile(wstr long long)
+@ stdcall -version=0x600+ WerRegisterMemoryBlock(ptr long)
+@ stdcall -version=0x600+ WerSetFlags(long)
+@ stdcall -version=0x600+ WerUnregisterFile(wstr)
+@ stdcall -version=0x600+ WerUnregisterMemoryBlock(ptr)
 @ stub -version=0x600+ WerpCleanupMessageMapping
 @ stub -version=0x600+ WerpInitiateRemoteRecovery
 @ stub -version=0x600+ WerpNotifyLoadStringResource

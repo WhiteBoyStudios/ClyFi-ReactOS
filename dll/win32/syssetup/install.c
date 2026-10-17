@@ -1145,6 +1145,20 @@ Exit:
     return bResult;
 }
 
+/* ClyFiOS: print a "BOOTTIME: <stage> <ms>" line to the debug output, in the
+ * same format as ExpBootMilestone in ntoskrnl, to build a boot timeline. */
+static
+VOID
+SetupBootMilestone(
+    _In_ PCSTR Name)
+{
+    CHAR Milestone[96];
+    _snprintf(Milestone, sizeof(Milestone) - 1, "BOOTTIME: %-32s %6lu ms\n",
+              Name, GetTickCount());
+    Milestone[sizeof(Milestone) - 1] = '\0';
+    OutputDebugStringA(Milestone);
+}
+
 static
 DWORD
 InstallLiveCD(VOID)
@@ -1153,9 +1167,11 @@ InstallLiveCD(VOID)
     PROCESS_INFORMATION ProcessInformation;
     BOOL bRes;
 
+    SetupBootMilestone("LiveCD setup start");
     PreprocessUnattend(FALSE);
     if (!CommonInstall())
         goto error;
+    SetupBootMilestone("LiveCD devices installed");
 
     /* Install the TCP/IP protocol driver */
     bRes = InstallNetworkComponent(L"MS_TCPIP");
@@ -1170,6 +1186,8 @@ InstallLiveCD(VOID)
         SetupStartService(L"Dhcp", FALSE);
         SetupStartService(L"Dnscache", FALSE);
     }
+
+    SetupBootMilestone("LiveCD network started");
 
     /* Register components */
     _SEH2_TRY
@@ -1191,6 +1209,7 @@ InstallLiveCD(VOID)
     _SEH2_END;
 
     SetupCloseInfFile(hSysSetupInf);
+    SetupBootMilestone("LiveCD components registered");
 
     /* Run the shell */
     ZeroMemory(&StartupInfo, sizeof(StartupInfo));
