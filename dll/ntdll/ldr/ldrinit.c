@@ -647,6 +647,83 @@ Exit:
     DPRINT("LdrpInitializeThread() done\n");
 }
 
+/* ClyFiOS: describe where an address lives (module!+offset) for crash logs */
+static
+VOID
+LdrpDescribeAddress(IN PCSTR Label, IN ULONG_PTR Address)
+{
+    PLIST_ENTRY ListHead, Entry;
+    PLDR_DATA_TABLE_ENTRY Module;
+
+    ListHead = &NtCurrentPeb()->Ldr->InLoadOrderModuleList;
+    for (Entry = ListHead->Flink; Entry != ListHead; Entry = Entry->Flink)
+    {
+        Module = CONTAINING_RECORD(Entry, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+        if (Address >= (ULONG_PTR)Module->DllBase &&
+            Address < (ULONG_PTR)Module->DllBase + Module->SizeOfImage)
+        {
+            DPRINT1("  %s %p = %wZ+0x%Ix\n", Label, (PVOID)Address,
+                    &Module->BaseDllName, Address - (ULONG_PTR)Module->DllBase);
+            return;
+        }
+    }
+    DPRINT1("  %s %p\n", Label, (PVOID)Address);
+}
+
+/* ClyFiOS: log the faulting address and a rough stack trace for DllMain crashes */
+static
+LONG
+LdrpDllInitExceptionFilter(IN PEXCEPTION_POINTERS Info, IN PLDR_DATA_TABLE_ENTRY LdrEntry)
+{
+    PEXCEPTION_RECORD Record = Info->ExceptionRecord;
+    ULONG_PTR *Stack;
+    ULONG i, Found = 0;
+
+    DPRINT1("DllMain exception 0x%lx in %wZ (base %p)\n",
+            Record->ExceptionCode, &LdrEntry->BaseDllName, LdrEntry->DllBase);
+    LdrpDescribeAddress("at", (ULONG_PTR)Record->ExceptionAddress);
+    if (Record->NumberParameters >= 2)
+    {
+        DPRINT1("  access type %Iu address %p\n",
+                Record->ExceptionInformation[0], (PVOID)Record->ExceptionInformation[1]);
+    }
+#ifdef _M_AMD64
+    DPRINT1("  rax=%p rbx=%p rcx=%p rdx=%p rsi=%p rdi=%p\n",
+            (PVOID)Info->ContextRecord->Rax, (PVOID)Info->ContextRecord->Rbx,
+            (PVOID)Info->ContextRecord->Rcx, (PVOID)Info->ContextRecord->Rdx,
+            (PVOID)Info->ContextRecord->Rsi, (PVOID)Info->ContextRecord->Rdi);
+    Stack = (ULONG_PTR *)Info->ContextRecord->Rsp;
+    _SEH2_TRY
+    {
+        for (i = 0; i < 512 && Found < 16; i++)
+        {
+            ULONG_PTR Value = Stack[i];
+            PLIST_ENTRY ListHead = &NtCurrentPeb()->Ldr->InLoadOrderModuleList, Entry;
+            for (Entry = ListHead->Flink; Entry != ListHead; Entry = Entry->Flink)
+            {
+                PLDR_DATA_TABLE_ENTRY Module = CONTAINING_RECORD(Entry, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+                if (Value >= (ULONG_PTR)Module->DllBase &&
+                    Value < (ULONG_PTR)Module->DllBase + Module->SizeOfImage)
+                {
+                    LdrpDescribeAddress("stack", Value);
+                    Found++;
+                    break;
+                }
+            }
+        }
+    }
+    _SEH2_EXCEPT(EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+    _SEH2_END;
+#else
+    UNREFERENCED_PARAMETER(Stack);
+    UNREFERENCED_PARAMETER(i);
+    UNREFERENCED_PARAMETER(Found);
+#endif
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 NTSTATUS
 NTAPI
 LdrpRunInitializeRoutines(IN PCONTEXT Context OPTIONAL)
@@ -859,7 +936,7 @@ LdrpRunInitializeRoutines(IN PCONTEXT Context OPTIONAL)
                                                 DLL_PROCESS_ATTACH,
                                                 Context);
             }
-            _SEH2_EXCEPT(EXCEPTION_EXECUTE_HANDLER)
+            _SEH2_EXCEPT(LdrpDllInitExceptionFilter(_SEH2_GetExceptionInformation(), LdrEntry))
             {
                 DllStatus = FALSE;
                 DPRINT1("WARNING: Exception 0x%x during LdrpCallInitRoutine(DLL_PROCESS_ATTACH) for %wZ\n",
