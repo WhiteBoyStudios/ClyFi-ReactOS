@@ -226,6 +226,14 @@ StartWithDesktop(IN HINSTANCE hInstance)
     if (!SetShellReadyEvent(L"msgina: ShellReadyEvent"))
         SetShellReadyEvent(L"Global\\msgina: ShellReadyEvent");
 
+    {
+        /* ClyFiOS: boot-time milestone (see ExpBootMilestone in ntoskrnl) */
+        CHAR Milestone[96];
+        StringCchPrintfA(Milestone, ARRAYSIZE(Milestone), "BOOTTIME: %-32s %6lu ms\n",
+                         "desktop ready (explorer)", GetTickCount());
+        OutputDebugStringA(Milestone);
+    }
+
     if (DoStartStartupItems(Tray))
     {
         ProcessStartupItems();

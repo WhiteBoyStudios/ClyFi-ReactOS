@@ -1349,6 +1349,18 @@ VOID
 NTAPI
 MmFreeLoaderBlock(IN PLOADER_PARAMETER_BLOCK LoaderBlock);
 
+/* ClyFiOS: boot-time milestones, printed to the debug log (serial) as
+ * "BOOTTIME: <milestone> <ms since the clock started>". User-mode
+ * milestones (winlogon, explorer) use the same format, so one grep for
+ * BOOTTIME in serial.log gives the whole boot timeline. */
+static
+VOID
+ExpBootMilestone(IN PCSTR Name)
+{
+    DbgPrint("BOOTTIME: %-32s %6I64u ms\n",
+             Name, KeQueryInterruptTime() / 10000);
+}
+
 CODE_SEG("INIT")
 VOID
 NTAPI
@@ -1374,6 +1386,8 @@ Phase1InitializationDiscard(IN PVOID Context)
     OBJECT_ATTRIBUTES ObjectAttributes;
     HANDLE KeyHandle, OptionHandle;
     PRTL_USER_PROCESS_PARAMETERS ProcessParameters = NULL;
+
+    ExpBootMilestone("kernel phase 1 start");
 
     /* Allocate the initialization buffer */
     InitBuffer = ExAllocatePoolWithTag(NonPagedPool,
@@ -1853,7 +1867,9 @@ Phase1InitializationDiscard(IN PVOID Context)
     InbvSetProgressBarSubset(25, 75);
 
     /* Initialize the I/O Subsystem */
+    ExpBootMilestone("I/O init start (drivers)");
     if (!IoInitSystem(LoaderBlock)) KeBugCheck(IO1_INITIALIZATION_FAILED);
+    ExpBootMilestone("I/O init done (drivers loaded)");
 
     /* Set maximum update to 100% */
     InbvSetProgressBarSubset(0, 100);
@@ -2022,6 +2038,7 @@ Phase1InitializationDiscard(IN PVOID Context)
     /* Launch initial process */
     ProcessInfo = &InitBuffer->ProcessInfo;
     ExpLoadInitialProcess(InitBuffer, &ProcessParameters, &Environment);
+    ExpBootMilestone("smss.exe launched");
 
     /* Wait 5 seconds for initial process to initialize */
     Timeout.QuadPart = Int32x32To64(5, -10000000);
